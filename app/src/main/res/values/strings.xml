@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">AssaQueue</string>
+    <string name="disconnected">disconnected</string>
+    <string name="connected">connected</string>
+    <string name="connecting">connecting</string>
+    <string name="unplugged">unplugged</string>
+    <string name="failed">failed</string>
+</resources>
