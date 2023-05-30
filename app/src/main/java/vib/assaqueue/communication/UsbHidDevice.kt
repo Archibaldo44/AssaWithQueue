@@ -27,7 +27,7 @@ private const val ACTION_USB_PERMISSION = "assa.industrialdoors.USB_PERMISSION"
 class UsbHidDevice(
     private val application: Application,
     name: String,
-    address: String
+    address: String,
 ) : SerialDevice(name, address) {
 
     var swVersion = ""
@@ -39,30 +39,38 @@ class UsbHidDevice(
     private var usbInterface: UsbInterface? = null
     private var inEndpoint: UsbEndpoint? = null
     private var outEndpoint: UsbEndpoint? = null
-    var usbConnection: UsbDeviceConnection? = null
+    private var usbConnection: UsbDeviceConnection? = null
 
     override suspend fun connectAndListen(
         byteReceivedListener: (bytes: List<Byte>) -> Unit,
-        connectionListener: (ConnectionStatus) -> Unit
+        connectionListener: (ConnectionStatus) -> Unit,
     ) {
         super.connectAndListen(byteReceivedListener, connectionListener)
 
         updateConnectionStatus(ConnectionStatus.CONNECTING)
         val usbManager = application.getSystemService(Context.USB_SERVICE) as UsbManager
         usbManager.deviceList[name]?.let { usbDevice ->
+            val flag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            } else {
+                0
+            }
             val permissionIntent = PendingIntent.getBroadcast(
                 application,
                 0,
                 Intent(ACTION_USB_PERMISSION),
-                0   // FIXME: PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT doesn't work
+                flag,
             )
             val filter = IntentFilter(ACTION_USB_PERMISSION)
 
-            application.registerReceiver(object : BroadcastReceiver() {
-                override fun onReceive(context: Context, intent: Intent) {
-                    onUsbPermissionRequest(this, intent)
-                }
-            }, filter)
+            application.registerReceiver(
+                object : BroadcastReceiver() {
+                    override fun onReceive(context: Context, intent: Intent) {
+                        onUsbPermissionRequest(this, intent)
+                    }
+                },
+                filter,
+            )
             usbManager.requestPermission(usbDevice, permissionIntent)
 
             usbDetachReceiver = object : BroadcastReceiver() {
@@ -87,7 +95,7 @@ class UsbHidDevice(
             outEndpoint,
             byteArray,
             byteArray.size,
-            0
+            0,
         )
         if (result != null && result >= 0) {
             Log.i("vitDebugCommunication", "out($result) >>> ${byteArray.map { it.toUByte() }}")
@@ -97,7 +105,7 @@ class UsbHidDevice(
     }
 
     override fun disconnect(
-        failure: Boolean
+        failure: Boolean,
     ) {
         stopMessageListenerAndReleaseUsb()
         updateConnectionStatus(if (failure) ConnectionStatus.FAILED else ConnectionStatus.DISCONNECTED)
@@ -121,7 +129,7 @@ class UsbHidDevice(
                         updateConnectionStatus(ConnectionStatus.CONNECTED)
                         application.registerReceiver(
                             usbDetachReceiver,
-                            IntentFilter(UsbManager.ACTION_USB_DEVICE_DETACHED)
+                            IntentFilter(UsbManager.ACTION_USB_DEVICE_DETACHED),
                         )
                     } catch (e: Exception) {
                         updateConnectionStatus(ConnectionStatus.FAILED)
